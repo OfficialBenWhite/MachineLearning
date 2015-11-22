@@ -1,0 +1,109 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "Ben White"
+date: "22 November 2015"
+output:
+  html_document:
+    keep_md: yes
+---
+
+
+The data consists of information from set of sensors measuring acceleration when a human subject performs a variety of tasks.
+
+The aim of this project is to see if we can predict the movement/task which is described in the factor varaible "classe" from the other information
+The first step is to download the data.
+
+```{r}
+setwd("/Users/bw/RCourse/machineLearning")
+
+urlTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlTest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+fileTrain <- "fileTrain"
+fileTest <- "fileTest"
+
+if(!file.exists(fileTrain)){ 
+download.file(urlTrain,fileTrain, method = "curl")
+}
+
+if(!file.exists(fileTest)){ 
+download.file(urlTest,fileTest,method = "curl")
+}
+```
+
+Read the data in using read.csv
+
+```{r}
+pmlTrain <- read.csv(fileTrain, na.strings=c("NA",""), strip.white=TRUE)
+pmlTest <- read.csv(fileTest, na.strings=c("NA",""), strip.white=TRUE)
+```
+
+In order to build a model quickly, it makes sense to remove any variables with NAs and also lets get rid of obvious metadata such as timestamp and user_name.
+
+```{r}
+isNA <- apply(pmlTrain, 2, function(x) { sum(is.na(x)) })
+preProcessed <- subset(pmlTrain[, which(isNA == 0)], 
+select=-c(X, 
+user_name,
+new_window, 
+num_window,
+raw_timestamp_part_1, 
+raw_timestamp_part_2, 
+cvtd_timestamp))
+
+dim(preProcessed)
+```
+
+We need to split up the "train" set into an actual training and test set for the purpose of model building and validation. For this we use caret and we set the seed. A 60:40 training to test ratio was used.
+
+```{r, echo=FALSE}
+library(caret)
+set.seed(1234)
+inTrain <- createDataPartition(preProcessed$classe, p=0.6, list=FALSE)
+training <- preProcessed[inTrain,]
+testing <- preProcessed[-inTrain,]
+```
+
+##Training a Random Forest
+
+Do not want to waste time with other models so using a random forst without intensive boostrapping.
+```{r, cache=TRUE}
+ctrl <- trainControl(allowParallel=TRUE, method="cv", number=4)
+model <- train(classe ~ ., data=training, model="rf", trControl=ctrl)
+predictions <- predict(model, newdata=testing)
+```
+
+View the model
+
+```{r}
+print(model)
+```
+
+Now view the confusion matrix
+
+```{r}
+confusionMatrix(testing$classe, predictions)$table
+#varImp(model)
+```
+
+The model is 98.8% accurate. This will do for the scope of the project.
+
+#Submit the Assignment
+
+Model got 100% accuracy, a good result.
+
+```{r}
+answers = predict(model, newdata=pmlTest)
+
+pml_write_files = function(x){
+n = length(x)
+for(i in 1:n){
+filename = paste0("problem_id_",i,".txt")
+write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+}
+}
+
+pml_write_files(answers)
+```
+
+
